@@ -4,13 +4,13 @@ import time, os, sys, re, json, html
 
 A_VERSION = "0.2.6"
 
-def pad_filename(str):
+def pad_filename(x):
 	digits = re.compile('(\\d+)')
-	pos = digits.search(str)
+	pos = digits.search(x)
 	if pos:
-		return str[1:pos.start()] + pos.group(1).zfill(3) + str[pos.end():]
+		return x[1:pos.start()] + pos.group(1).zfill(3) + x[pos.end():]
 	else:
-		return str
+		return x
 
 def float_conversion(x):
 	try:
@@ -34,7 +34,7 @@ def dl(manga_id, lang_code):
 		manga = json.loads(r.text)
 	except (json.decoder.JSONDecodeError, ValueError) as err:
 		print("CloudFlare error: {}".format(err))
-		exit(1)
+		exit()
 
 	try:
 		title = manga["manga"]["title"]
