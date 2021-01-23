@@ -32,7 +32,7 @@ def dl(manga_id, lang_code):
 	try:
 		r1 = scraper.get("https://mangadex.org/api/v2/manga/{}/".format(manga_id))
 		try:
-			title = json.loads(r1.text)["data"]["manga"]["title"]
+			title = json.loads(r1.text)["data"]["title"]
 		except:
 			print("Please enter a MangaDex manga (not chapter) URL.")
 			exit(1)
@@ -43,16 +43,16 @@ def dl(manga_id, lang_code):
 
 	try:
 		r2 = scraper.get("https://mangadex.org/api/v2/manga/{}/chapters".format(manga_id))
-		manga = json.loads(r2.text)["data"]
+		manga = json.loads(r2.text)["data"]["chapters"]
 	except (json.decoder.JSONDecodeError, ValueError) as err:
 		print("CloudFlare error: {}".format(err))
 		exit(2)
 
 	# check available chapters
 	chapters = []
-	for chap in range(len(manga["chapters"])):
-		if manga["chapters"][chap]["language"] == lang_code:
-			chapters.append(manga["chapters"][chap]["chapter"])
+	for i in range(len(manga)):
+		if manga[i]["language"] == lang_code:
+			chapters.append(manga[i]["chapter"])
 	chapters.sort(key=float_conversion) # sort numerically by chapter #
 
 	chapters_revised = ["Oneshot" if x == "" else x for x in chapters]
@@ -68,20 +68,20 @@ def dl(manga_id, lang_code):
 	if len(chapters) == 0:
 		print("No chapters available to download!")
 		exit(0)
-    elif len(dupl) != 0:
-        print("Available chapters:")
-        print(" " + ', '.join(map(str, chapters_revised)))
-        print("Duplictes found")
-        print(" " + ', '.join(map(str, dupl)))
+	elif len(dupl) != 0:
+		print("Available chapters:")
+		print(" " + ', '.join(map(str, chapters_revised)))
+		print("Duplictes found")
+		print(" " + ', '.join(map(str, dupl)))
 	else:
 		print("Available chapters:")
 		print(" " + ', '.join(map(str, chapters_revised)))
 
 	# get which for chapters to download
 	requested_chapters = []
-	chap_list = input("\nEnter chapter(s) to download: ").strip()
-	chap_list = [s for s in chap_list.split(',')]
-	for s in chap_list:
+	req_chap_input = input("\nEnter chapter(s) to download: ").strip()
+	req_chap_input = [s for s in req_chap_input.split(',')]
+	for s in req_chap_input:
 		s = s.strip()
 		if "-" in s:
 			split = s.split('-')
@@ -109,22 +109,22 @@ def dl(manga_id, lang_code):
 	# find out which are availble to dl
 	chaps_to_dl = []
 	chapter_num = None
-	for chapter_id in range(len(manga["chapters"])):
+	for chapter_id in range(len(manga)):
 		try:
-			chapter_num = str(float(manga["chapters"][str(chapter_id)]["chapter"])).replace(".0", "")
+			chapter_num = str(float(manga[str(chapter_id)]["chapter"])).replace(".0", "")
 		except:
-			chapter_num = str(manga["chapters"][chapter_id]["chapter"])
-		chapter_group = manga["chapters"][chapter_id]["group_name"]
-		if chapter_num in requested_chapters and manga["chapters"][chapter_id]["language"] == lang_code:
-			chaps_to_dl.append((str(chapter_num), manga["chapters"][chapter_id]["id"], chapter_group))
+			chapter_num = str(manga[chapter_id]["chapter"])
+		chapter_group = manga[chapter_id]["groups"]
+		if chapter_num in requested_chapters and manga[chapter_id]["language"] == lang_code:
+			chaps_to_dl.append((str(chapter_num), manga[chapter_id]["id"], chapter_group))
 	chaps_to_dl.sort(key = lambda x: float(x[0]))
 
 	# get chapter(s) json
 	print()
 	for chapter_id in chaps_to_dl:
 		print("Downloading chapter {}...".format(chapter_id[0]))
-		r = scraper.get("https://mangadex.org/api/chapter/{}/".format(chapter_id[1]))
-		chapter = json.loads(r.text)
+		r = scraper.get("https://mangadex.org/api/v2/chapter/{}/".format(chapter_id[1]))
+		chapter = json.loads(r.text)["data"]
 
 		# get url list
 		images = []
@@ -136,7 +136,7 @@ def dl(manga_id, lang_code):
 			images.append("{}{}/{}".format(server, hashcode, page))
 
 		# download images
-		groupname = re.sub('[/<>:"/\\|?*]', '-', chapter_id[2])
+		groupname = re.sub('[/<>:"/\\|?*]', '-', chapter["groups"][0]["name"])
 		for pagenum, url in enumerate(images, 1):
 			filename = os.path.basename(url)
 			ext = os.path.splitext(filename)[1]
@@ -156,7 +156,7 @@ def dl(manga_id, lang_code):
 				print("Encountered Error {} when downloading.".format(r.status_code))
 
 			print(" Downloaded page {}.".format(pagenum))
-			time.sleep(1)
+			#time.sleep(1)
 
 	print("Done!")
 
