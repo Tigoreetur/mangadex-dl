@@ -31,12 +31,12 @@ def dl(manga_id, lang_code):
 	scraper = cloudscraper.create_scraper()
 	try:
 		r1 = scraper.get("https://mangadex.org/api/v2/manga/{}/".format(manga_id))
-        try:
-            title = json.loads(r1.text)["data"]["manga"]["title"]
-        except:
-            print("Please enter a MangaDex manga (not chapter) URL.")
-            exit(1)
-        print("\nTitle: {}".format(html.unescape(title)))
+		try:
+			title = json.loads(r1.text)["data"]["manga"]["title"]
+		except:
+			print("Please enter a MangaDex manga (not chapter) URL.")
+			exit(1)
+		print("\nTitle: {}".format(html.unescape(title)))
 	except (json.decoder.JSONDecodeError, ValueError) as err:
 		print("CloudFlare error: {}".format(err))
 		exit(1)
@@ -56,9 +56,23 @@ def dl(manga_id, lang_code):
 	chapters.sort(key=float_conversion) # sort numerically by chapter #
 
 	chapters_revised = ["Oneshot" if x == "" else x for x in chapters]
+
+	# Find all duplicates
+	dupl_s = set()
+	for i in chapters_revised:
+		if chapters_revised.count(i) > 1:
+			dupl_s.add(i)
+	dupl = list(dupl_s)
+	dupl.sort(key=float_conversion)
+
 	if len(chapters) == 0:
 		print("No chapters available to download!")
 		exit(0)
+    elif len(dupl) != 0:
+        print("Available chapters:")
+        print(" " + ', '.join(map(str, chapters_revised)))
+        print("Duplictes found")
+        print(" " + ', '.join(map(str, dupl)))
 	else:
 		print("Available chapters:")
 		print(" " + ', '.join(map(str, chapters_revised)))
