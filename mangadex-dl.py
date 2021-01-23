@@ -2,7 +2,7 @@
 import cloudscraper
 import time, os, sys, re, json, html
 
-A_VERSION = "0.2.6"
+A_VERSION = "0.2.7"
 
 def pad_filename(x):
 	digits = re.compile('(\\d+)')
