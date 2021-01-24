@@ -38,17 +38,17 @@ def dl(manga_id, lang_code):
 			exit(1)
 		print("\nTitle: {}".format(html.unescape(title)))
 	except (json.decoder.JSONDecodeError, ValueError) as err:
-		print("CloudFlare error: {}".format(err))
+		print("Error: {}".format(err))
 		exit(1)
 
 	try:
 		r2 = scraper.get("https://mangadex.org/api/v2/manga/{}/chapters".format(manga_id))
 		manga = json.loads(r2.text)["data"]["chapters"]
 	except (json.decoder.JSONDecodeError, ValueError) as err:
-		print("CloudFlare error: {}".format(err))
+		print("Error: {}".format(err))
 		exit(2)
 
-	# check available chapters
+	# check for all chapters in your language
 	chapters = []
 	for i in range(len(manga)):
 		if manga[i]["language"] == lang_code:
@@ -65,9 +65,10 @@ def dl(manga_id, lang_code):
 	dupl = list(dupl_s)
 	dupl.sort(key=float_conversion)
 
+	# print downloadable chapters
 	if len(chapters) == 0:
 		print("No chapters available to download!")
-		exit(0)
+		exit("No chapters available to download!")
 	elif len(dupl) != 0:
 		print("Available chapters:")
 		print(" " + ', '.join(map(str, chapters_revised)))
@@ -77,34 +78,45 @@ def dl(manga_id, lang_code):
 		print("Available chapters:")
 		print(" " + ', '.join(map(str, chapters_revised)))
 
-	# get which for chapters to download
+	# get which chapters to download
 	requested_chapters = []
 	req_chap_input = input("\nEnter chapter(s) to download: ").strip()
 	req_chap_input = [s for s in req_chap_input.split(',')]
-	for s in req_chap_input:
-		s = s.strip()
-		if "-" in s:
-			split = s.split('-')
-			lower_bound = split[0]
-			upper_bound = split[1]
-			try:
-				lower_bound_i = chapters.index(lower_bound)
-			except ValueError:
-				print("Chapter {} does not exist. Skipping {}.".format(lower_bound, s))
-				continue # go to next iteration of loop
-			try:
-				upper_bound_i = chapters.index(upper_bound)
-			except ValueError:
-				print("Chapter {} does not exist. Skipping {}.".format(upper_bound, s))
-				continue
-			s = chapters[lower_bound_i:upper_bound_i+1]
-		else:
-			try:
-				s = [chapters[chapters.index(s)]]
-			except ValueError:
-				print("Chapter {} does not exist. Skipping.".format(s))
-				continue
-		requested_chapters.extend(s)
+	if req_chap_input == "all" or req_chap_input == "a":
+		requested_chapters.extend(chapters)		# download all chapters
+	else:
+		req_chap_input = [s for s in req_chap_input.split(',')]
+		for s in req_chap_input:
+			s = s.strip()
+			s = s.replace("f", chapters[0])
+			s = s.replace("first", chapters[0])
+			s = s.replace("l", chapters[-1])
+			s = s.replace("last", chapters[-1])
+			if "-" in s:
+				split = s.split('-')
+				lower_bound = split[0]
+				upper_bound = split[1]
+				try:
+					lower_bound_i = chapters.index(lower_bound)
+				except ValueError:
+					print("Chapter {} does not exist. Skipping {}.".format(lower_bound, s))
+					continue # go to next iteration of loop
+				try:
+					upper_bound_i = chapters.index(upper_bound)
+				except ValueError:
+					print("Chapter {} does not exist. Skipping {}.".format(upper_bound, s))
+					continue
+				s = chapters[lower_bound_i:upper_bound_i+1]
+			else:
+				try:
+					s = [chapters[chapters.index(s)]]
+				except ValueError:
+					print("Chapter {} does not exist. Skipping.".format(s))
+					continue
+			requested_chapters.extend(s)
+	if requested_chapters == []:
+		exit()
+
 
 	# find out which are availble to dl
 	chaps_to_dl = []
@@ -123,7 +135,10 @@ def dl(manga_id, lang_code):
 	print()
 	for chapter_id in chaps_to_dl:
 		print("Downloading chapter {}...".format(chapter_id[0]))
-		r = scraper.get("https://mangadex.org/api/v2/chapter/{}/".format(chapter_id[1]))
+		while True:
+			r = scraper.get("https://mangadex.org/api/v2/chapter/{}/".format(chapter_id[1]))
+			if r.status_code == 200:
+				break
 		chapter = json.loads(r.text)["data"]
 
 		# get url list
