@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-import cloudscraper
+import requests
 import time, os, sys, re, json, html
+import validators
 
 A_VERSION = "0.2.7"
 
-file_save_location = "C:\\Users\\Tigoreetur\\Desktop"
+file_save_location = os.getcwd(), "download"
 # file_save_location = os.getcwd(), "download" #default save location
 
 def pad_filename(x):
@@ -30,26 +31,25 @@ def zpad(num):
 		return num.zfill(3)
 
 def dl(manga_id, lang_code):
-	# grab manga info json from api
-	scraper = cloudscraper.create_scraper()
+	# grab manga info json from api v2
 	try:
-		r1 = scraper.get("https://mangadex.org/api/v2/manga/{}/".format(manga_id))
+		r1 = requests.get("https://mangadex.org/api/v2/manga/{}/".format(manga_id))
 		try:
 			title = json.loads(r1.text)["data"]["title"]
 		except:
-			print("Please enter a MangaDex manga (not chapter) URL.")
+			print("Please enter a MangaDex URL.")
 			exit(1)
 		print("\nTitle: {}".format(html.unescape(title)))
 	except (json.decoder.JSONDecodeError, ValueError) as err:
-		print("Error: {}".format(err))
-		exit(1)
+		print("1 Error: {}".format(err))
+		exit("1 Error: {}".format(err))
 
 	try:
-		r2 = scraper.get("https://mangadex.org/api/v2/manga/{}/chapters".format(manga_id))
+		r2 = requests.get("https://mangadex.org/api/v2/manga/{}/chapters".format(manga_id))
 		manga = json.loads(r2.text)["data"]["chapters"]
 	except (json.decoder.JSONDecodeError, ValueError) as err:
-		print("Error: {}".format(err))
-		exit(2)
+		print("2 Error: {}".format(err))
+		exit("2 Error: {}".format(err))
 
 	# check for all chapters in your language
 	chapters = []
@@ -119,7 +119,6 @@ def dl(manga_id, lang_code):
 	if requested_chapters == []:
 		exit()
 
-
 	# find out which are availble to dl
 	chaps_to_dl = []
 	chapter_num = None
@@ -138,7 +137,7 @@ def dl(manga_id, lang_code):
 	for chapter_id in chaps_to_dl:
 		print("Downloading chapter {}...".format(chapter_id[0]))
 		while True:
-			r = scraper.get("https://mangadex.org/api/v2/chapter/{}/".format(chapter_id[1]))
+			r = requests.get("https://mangadex.org/api/v2/chapter/{}/".format(chapter_id[1]))
 			if r.status_code == 200:
 				break
 		chapter = json.loads(r.text)["data"]
@@ -165,7 +164,7 @@ def dl(manga_id, lang_code):
 			dest_filename = pad_filename("{}{}".format(pagenum, ext))
 			outfile = os.path.join(dest_folder, dest_filename)
 
-			r = scraper.get(url)
+			r = requests.get(url)
 			if r.status_code == 200:
 				with open(outfile, 'wb') as f:
 					f.write(r.content)
@@ -177,6 +176,17 @@ def dl(manga_id, lang_code):
 
 	print("Done!")
 
+def chap_id_to_manga(url, manga_id):
+	#global requests
+	if "mangadex.org/chapter" in url:
+		r = requests.get("https://mangadex.org/api/v2/chapter/{}".format(manga_id))
+		manga = json.loads(r.text)["data"]
+		chap_i = manga["chapter"]
+		print("Input chapter "+chap_i+".")
+		return(manga["mangaId"], chap_i)
+	else:
+		return(manga_id)
+
 if __name__ == "__main__":
 	print("mangadex-dl v{}".format(A_VERSION))
 
@@ -184,13 +194,24 @@ if __name__ == "__main__":
 		lang_code = sys.argv[1]
 	else:
 		lang_code = "gb"
-
+	
+	chap_i = ""
 	url = ""
 	while url == "":
 		url = input("Enter manga URL: ").strip()
+		if url == "exit" or url == "quit" or url == "q":
+			quit()
+		if not validators.url(url):
+			url = ""
+			print("Invalid url.")
+	manga_url = url
 	try:
+		print()
 		manga_id = re.search("[0-9]+", url).group(0)
-		split_url = url.split("/")
+		try:
+			manga_id, chap_i = chap_id_to_manga(url, manga_id)
+		except:
+			pass
 	except:
 		print("Error with URL.")
 
