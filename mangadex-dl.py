@@ -4,6 +4,9 @@ import time, os, sys, re, json, html
 
 A_VERSION = "0.2.7"
 
+file_save_location = "C:\\Users\\Tigoreetur\\Desktop"
+# file_save_location = os.getcwd(), "download" #default save location
+
 def pad_filename(x):
 	digits = re.compile('(\\d+)')
 	pos = digits.search(x)
@@ -81,7 +84,6 @@ def dl(manga_id, lang_code):
 	# get which chapters to download
 	requested_chapters = []
 	req_chap_input = input("\nEnter chapter(s) to download: ").strip()
-	req_chap_input = [s for s in req_chap_input.split(',')]
 	if req_chap_input == "all" or req_chap_input == "a":
 		requested_chapters.extend(chapters)		# download all chapters
 	else:
@@ -157,7 +159,7 @@ def dl(manga_id, lang_code):
 			ext = os.path.splitext(filename)[1]
 
 			title = re.sub('[/<>:"/\\|?*]', '-', title)
-			dest_folder = os.path.join(os.getcwd(), "download", title, "c{} [{}]".format(zpad(chapter_id[0]), groupname))
+			dest_folder = os.path.join(file_save_location, title, "c{} [{}]".format(zpad(chapter_id[0]), groupname))
 			if not os.path.exists(dest_folder):
 				os.makedirs(dest_folder)
 			dest_filename = pad_filename("{}{}".format(pagenum, ext))
