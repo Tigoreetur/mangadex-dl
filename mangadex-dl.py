@@ -30,7 +30,7 @@ def zpad(num):
 	else:
 		return num.zfill(3)
 
-def dl(manga_id, lang_code):
+def dl(manga_id, lang_code, chap_i):
 	# grab manga info json from api v2
 	try:
 		r1 = requests.get("https://mangadex.org/api/v2/manga/{}/".format(manga_id))
@@ -94,6 +94,8 @@ def dl(manga_id, lang_code):
 			s = s.replace("first", chapters[0])
 			s = s.replace("l", chapters[-1])
 			s = s.replace("last", chapters[-1])
+			s = s.replace("i", chap_i)
+			s = s.replace("input", chap_i)
 			if "-" in s:
 				split = s.split('-')
 				lower_bound = split[0]
@@ -121,8 +123,8 @@ def dl(manga_id, lang_code):
 
 	# find out which are availble to dl
 	chaps_to_dl = []
-	chapter_num = None
 	for chapter_id in range(len(manga)):
+		chapter_num = None
 		try:
 			chapter_num = str(float(manga[str(chapter_id)]["chapter"])).replace(".0", "")
 		except:
@@ -215,4 +217,4 @@ if __name__ == "__main__":
 	except:
 		print("Error with URL.")
 
-	dl(manga_id, lang_code)
+	dl(manga_id, lang_code, chap_i)
