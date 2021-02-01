@@ -4,35 +4,32 @@ import threading
 import requests
 import validators
 
-A_VERSION = "0.2.8"
+A_VERSION = "0.2.9"
 
 file_save_location = os.getcwd(), "download"
 # file_save_location = os.getcwd(), "download" #default save location
+maximum_number_of_concurrent_downloads = 30
+
 failed_chapters = []
-all_chapters = []
+all_downloaded_chapters = []
 nr_of_dls = 0
 
-def pad_filename(x):
-	digits = re.compile('(\\d+)')
-	pos = digits.search(x)
-	if pos:
-		return x[1:pos.start()] + pos.group(1).zfill(3) + x[pos.end():]
-	else:
-		return x
 
 def float_conversion(x):
+	# converts value to float
 	try:
-		x = float(x)
+		return float(x)
 	except ValueError: # empty string for oneshot
-		x = 0
-	return x
+		return 0
 
-def zpad(num):
-	if "." in num:
-		parts = num.split('.')
+def zpad(x):
+	# pads filenames with zeroes using zfill
+	x1 = str(x)
+	if "." in x1:
+		parts = x1.split('.')
 		return "{}.{}".format(parts[0].zfill(3), parts[1])
 	else:
-		return num.zfill(3)
+		return x1.zfill(3)
 
 def dl(manga_id, lang_code, chap_i):
 	# grab manga info json from api v2
@@ -113,7 +110,7 @@ def dl(manga_id, lang_code, chap_i):
 	for chapter_id in chaps_to_dl:
 		download_chapters(chapter_id, title)
 
-	finish(title)
+	finish()
 
 def get_chapters_to_download(chapters, chap_i):
 	requested_chapters = []
@@ -123,13 +120,23 @@ def get_chapters_to_download(chapters, chap_i):
 	else:
 		req_chap_input = [i for i in req_chap_input.split(',')]
 		for i in req_chap_input:
+
+			if i == "bi" or i == "beforeinput":
+				chap_i_index = chapters.index(chap_i)
+				requested_chapters.append(chapters[chap_i_index-1])
+				requested_chapters.append(chapters[chap_i_index])
+				continue
+			if i == "i" or i == "input":
+				chap_i_index = chapters.index(chap_i)
+				requested_chapters.append(chapters[chap_i_index])
+				continue
+		
 			i = i.strip()
 			i = i.replace("f", chapters[0])
 			i = i.replace("first", chapters[0])
 			i = i.replace("l", chapters[-1])
 			i = i.replace("last", chapters[-1])
-			i = i.replace("i", chap_i)
-			i = i.replace("input", chap_i)
+
 			if "-" in i:
 				split = i.split('-')
 				lower_bound = split[0]
@@ -161,7 +168,7 @@ def get_chapters_to_download(chapters, chap_i):
 
 def download_chapters(chapter_id, title):
 	global file_save_location
-	global all_chapters
+	global all_downloaded_chapters
 	global failed_chapters
 	global dest_folder
 
@@ -193,26 +200,22 @@ def download_chapters(chapter_id, title):
 
 		if not os.path.exists(dest_folder):
 			os.makedirs(dest_folder)
-		while nr_of_dls > 45:
+		while nr_of_dls > maximum_number_of_concurrent_downloads:
 			time.sleep(0.1)
 		trdp = threading.Thread(target=page_download, \
 				args=(pagenum, url, dest_folder, loc, chapter_id))
 		trdp.start()
-	while nr_of_dls > 15:
-		time.sleep(0.1)
 		
 
-
 def page_download(pagenum, url, dest_folder, loc, chapter_id):
-	global all_chapters
+	global all_downloaded_chapters
 	global nr_of_dls
 	nr_of_dls += 1
-	filename = os.path.basename(url)
-	ext = os.path.splitext(filename)[1]
-	dest_filename = pad_filename("{}{}".format(pagenum, ext))
-	dest_filename = loc +" "+ dest_filename
+	server_file_filename = os.path.basename(url)
+	ext = os.path.splitext(server_file_filename)[1]
+	dest_filename = loc +" "+ zpad(pagenum)+(ext)
 	outfile = os.path.join(dest_folder, dest_filename)
-	all_chapters.append(outfile)
+	all_downloaded_chapters.append(outfile)
 	fail_count = 0
 	while True:
 		try:
@@ -231,42 +234,52 @@ def page_download(pagenum, url, dest_folder, loc, chapter_id):
 					nr_of_dls -= 1
 					break
 		except:
-			print("Download failed.")
+			print("Download failed with ch {} page {}.".format(\
+											str(chapter_id[0]).zfill(4), \
+											str(pagenum).zfill(2), ))
 			fail_count += 1
 			time.sleep(3)
 			if  fail_count > 6:
 				nr_of_dls -= 1
 				break
-	print(" Downloaded chapter {} page {}. 		Nr of current downloads {}."\
-		.format(chapter_id[0], pagenum, nr_of_dls))
+	print(" Downloaded chapter {} page {}. Nr of active downloads {}."\
+		.format(str(chapter_id[0]).zfill(4), \
+				str(pagenum).zfill(2), \
+				str(nr_of_dls).zfill(2)))
 
-def finish(title):
+def finish():
 	global nr_of_dls
-	global failed_chapters
-	global all_chapters
-	global dest_folder
-	global manga_url
 	time.sleep(2)
 	while nr_of_dls > 0:
 		time.sleep(0.1)
 	print("Downloading done!")
 
-	for x in all_chapters:
-		try:
-			f = open(x)
-			f.close()
-		except:
-			failed_chapters.append(x)
-	if failed_chapters != []:
-		print(failed_chapters)
-	failed_chapters = []
-	all_chapters = []
+	find_failed_chapters()
+	make_shortcut()
 
+def make_shortcut():
+	global dest_folder
+	global manga_id
 	path = os.path.join(dest_folder, "!Manga.url")
 	shortcut = open(path, 'w')
 	shortcut.write('[InternetShortcut]\n')
-	shortcut.write('URL=%s' % manga_url)
+	url = "https://mangadex.org/manga/" + str(manga_id)
+	shortcut.write('URL=%s' % url)
 	shortcut.close()
+
+def find_failed_chapters():
+	global failed_chapters
+	global all_downloaded_chapters
+	for x in all_downloaded_chapters:
+			try:
+					f = open(x)
+					f.close()
+			except:
+					failed_chapters.append(x)
+	if failed_chapters != []:
+			print(failed_chapters)
+	failed_chapters = []
+	all_downloaded_chapters = []
 
 	
 def chap_id_to_manga(url, manga_id):
@@ -281,7 +294,7 @@ def chap_id_to_manga(url, manga_id):
 		return(manga_id)
 
 def start():
-	global manga_url
+	global manga_id
 	print("mangadex-dl v{}".format(A_VERSION))
 
 	if len(sys.argv) > 1:
@@ -298,7 +311,6 @@ def start():
 		if not validators.url(url):
 			url = ""
 			print("Invalid url.")
-	manga_url = url
 	try:
 		manga_id = re.search("[0-9]+", url).group(0)
 		try:
@@ -312,4 +324,4 @@ def start():
 
 if __name__ == "__main__":
 
-    start()
+	start()
