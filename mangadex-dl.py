@@ -4,7 +4,7 @@ import threading
 import requests
 import validators
 
-A_VERSION = "0.2.8"
+A_VERSION = "0.2.9"
 
 file_save_location = os.getcwd(), "download"
 # file_save_location = os.getcwd(), "download" #default save location
@@ -24,11 +24,12 @@ def float_conversion(x):
 
 def zpad(x):
 	# pads filenames with zeroes using zfill
-	if "." in x:
-		parts = x.split('.')
+	x1 = str(x)
+	if "." in x1:
+		parts = x1.split('.')
 		return "{}.{}".format(parts[0].zfill(3), parts[1])
 	else:
-		return x.zfill(3)
+		return x1.zfill(3)
 
 def dl(manga_id, lang_code, chap_i):
 	# grab manga info json from api v2
@@ -212,8 +213,7 @@ def page_download(pagenum, url, dest_folder, loc, chapter_id):
 	nr_of_dls += 1
 	server_file_filename = os.path.basename(url)
 	ext = os.path.splitext(server_file_filename)[1]
-	dest_filename = zpad(pagenum)+(ext)
-	dest_filename = loc +" "+ dest_filename
+	dest_filename = loc +" "+ zpad(pagenum)+(ext)
 	outfile = os.path.join(dest_folder, dest_filename)
 	all_downloaded_chapters.append(outfile)
 	fail_count = 0
@@ -234,14 +234,18 @@ def page_download(pagenum, url, dest_folder, loc, chapter_id):
 					nr_of_dls -= 1
 					break
 		except:
-			print("Download failed.")
+			print("Download failed with ch {} page {}.".format(\
+											str(chapter_id[0]).zfill(4), \
+											str(pagenum).zfill(2), ))
 			fail_count += 1
 			time.sleep(3)
 			if  fail_count > 6:
 				nr_of_dls -= 1
 				break
-	print(" Downloaded chapter {} page {}. Nr of current downloads {}."\
-		.format(zpad(chapter_id[0]), zpad(pagenum), zpad(nr_of_dls)))
+	print(" Downloaded chapter {} page {}. Nr of active downloads {}."\
+		.format(str(chapter_id[0]).zfill(4), \
+				str(pagenum).zfill(2), \
+				str(nr_of_dls).zfill(2)))
 
 def finish():
 	global nr_of_dls
