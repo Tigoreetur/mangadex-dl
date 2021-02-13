@@ -20,32 +20,56 @@ all_downloaded_chapters = []
 nr_of_dls = 0
 
 
-def float_conversion(x):
+def float_conversion(i):
     '''
     converts value to float
     '''
     try:
-        return float(x)
+        return float(i)
     except ValueError:  # empty string for oneshot
         return 0
 
 
-def zpad(x):
+def zpad(i):
     '''
     pads filenames with zeroes using zfill
     '''
-    o = str(x)
-    if "." in o:
-        parts = o.split('.')
+    j = str(i)
+    if "." in j:
+        parts = j.split('.')
         return "{}.{}".format(parts[0].zfill(3), parts[1])
     else:
-        return o.zfill(3)
+        return j.zfill(3)
 
 
-def dl(manga_id, lang_code, chap_i):
+def main():
     '''
-    grab manga info json from api v2
+    main funtion
     '''
+    print("mangadex-dl v{}".format(version))
+
+    if len(sys.argv) > 1:
+        lang_code = sys.argv[1]
+    else:
+        lang_code = "gb"
+
+    chap_i = ""
+    url = ""
+    while url == "":
+        url = input("Enter manga URL: ").strip()
+        if url == "exit" or url == "quit" or url == "q":
+            quit()
+        if not validators.url(url):
+            url = ""
+            print("Invalid url.")
+    try:
+        manga_id = re.search("[0-9]+", url).group(0)
+        if "mangadex.org/chapter" in url:
+            manga_id, chap_i = chap_id_to_manga(manga_id)
+    except:
+        print("Error with URL.")
+
+    # grab manga info json from api v2
     try:
         response_1 = requests.get(
             "https://mangadex.org/api/v2/manga/{}/".format(manga_id))
@@ -69,16 +93,16 @@ def dl(manga_id, lang_code, chap_i):
 
     # get all chapters in chosen language
     chapters = []
-    for i in range(len(manga)):
+    for i, _ in enumerate(manga):
         if manga[i]["language"] == lang_code:
             chapters.append(str(manga[i]["chapter"]))
     chapters.sort(key=float_conversion)  # sort numerically by chapter #
 
-    chapters_revised = ["Oneshot" if x == "" else x for x in chapters]
+    chapters_revised = ["Oneshot" if i == "" else i for i in chapters]
 
     # get all groups
     groups_all = []
-    for i in range(len(manga)):
+    for i, _ in enumerate(manga):
         groups_all.append(manga[i]["groups"][0])
 
     # Find all duplicates
@@ -104,7 +128,7 @@ def dl(manga_id, lang_code, chap_i):
 
     # find out which are availble to dl
     chaps_to_dl = []
-    for chapter_id in range(len(manga)):
+    for chapter_id,_ in enumerate(manga):
         chapter_num = None
         try:
             chapter_num = str(
@@ -115,10 +139,9 @@ def dl(manga_id, lang_code, chap_i):
         chapter_group = manga[chapter_id]["groups"]
         if chapter_num in requested_chapters\
                 and manga[chapter_id]["language"] == lang_code:
-
             chaps_to_dl.append(
                 (str(chapter_num), manga[chapter_id]["id"], chapter_group[0]))
-    chaps_to_dl.sort(key=lambda x: float(x[0]))
+    chaps_to_dl.sort(key=lambda i: float(i[0]))
 
     chaps_to_dl_undupe_done = []
     chaps_to_dl_undupe = []
@@ -131,9 +154,39 @@ def dl(manga_id, lang_code, chap_i):
         else:
             chaps_to_dl_undupe.append(chapter_id)
 
-    [download_chapters(x, title) for x in chaps_to_dl_undupe]
+    dest_folder = os.path.join(file_save_location, title)
 
-    finish()
+    for i in chaps_to_dl_undupe:
+        download_chapters(i, title, dest_folder)
+
+
+    global nr_of_dls
+    time.sleep(2)
+    while nr_of_dls > 0:
+        time.sleep(0.1)
+    print("Downloading done!")
+
+    path = os.path.join(dest_folder, "!Manga.url")
+    shortcut = open(path, 'w')
+    shortcut.write('[InternetShortcut]\n')
+    url = "https://mangadex.org/manga/" + str(manga_id)
+    shortcut.write('URL=%s' % url)
+    shortcut.close()
+
+    global failed_chapters
+    global all_downloaded_chapters
+    for i in all_downloaded_chapters:
+        try:
+            f = open(i)
+            f.close()
+        except IOError:
+            failed_chapters.append(i)
+        except:
+            print("error with find_failed_chapters", i)
+    if failed_chapters != []:
+        print(failed_chapters)
+    failed_chapters = []
+    all_downloaded_chapters = []
 
 
 def get_chapters_to_download(chapters, chap_i):
@@ -193,11 +246,13 @@ def get_chapters_to_download(chapters, chap_i):
     return requested_chapters
 
 
-def download_chapters(chapter_id, title):
+def download_chapters(chapter_id, title, dest_folder):
+    '''
+    download chapters
+    '''
     global file_save_location
     global all_downloaded_chapters
     global failed_chapters
-    global dest_folder
 
     # get chapter(s) json
     print("Downloading chapter {}...".format(chapter_id[0]))
@@ -220,7 +275,7 @@ def download_chapters(chapter_id, title):
     groupname = re.sub('[/<>:"/\\|?*]', '-', chapter["groups"][0]["name"])
     title = re.sub('[/<>:"/\\|?*]', '-', title)
     title = "M " + title
-    dest_folder = os.path.join(file_save_location, title)
+
     loc = ("c{} [{}]".format(zpad(chapter_id[0]), groupname))
     # download images
     for pagenum, url in enumerate(images, 1):
@@ -235,6 +290,9 @@ def download_chapters(chapter_id, title):
 
 
 def page_download(pagenum, url, dest_folder, loc, chapter_id):
+    '''
+    download all pages
+    '''
     global all_downloaded_chapters
     global nr_of_dls
     nr_of_dls += 1
@@ -275,46 +333,10 @@ def page_download(pagenum, url, dest_folder, loc, chapter_id):
         str(nr_of_dls).zfill(2)))
 
 
-def finish():
-    global nr_of_dls
-    time.sleep(2)
-    while nr_of_dls > 0:
-        time.sleep(0.1)
-    print("Downloading done!")
-
-    find_failed_chapters()
-    make_shortcut()
-
-
-def make_shortcut():
-    global dest_folder
-    global manga_id
-    path = os.path.join(dest_folder, "!Manga.url")
-    shortcut = open(path, 'w')
-    shortcut.write('[InternetShortcut]\n')
-    url = "https://mangadex.org/manga/" + str(manga_id)
-    shortcut.write('URL=%s' % url)
-    shortcut.close()
-
-
-def find_failed_chapters():
-    global failed_chapters
-    global all_downloaded_chapters
-    for x in all_downloaded_chapters:
-        try:
-            f = open(x)
-            f.close()
-        except IOError:
-            failed_chapters.append(x)
-        except:
-            print("error with find_failed_chapters", x)
-    if failed_chapters != []:
-        print(failed_chapters)
-    failed_chapters = []
-    all_downloaded_chapters = []
-
-
-def chap_id_to_manga(url, manga_id):
+def chap_id_to_manga(manga_id):
+    '''
+    returns manga id of input chapter.
+    '''
     response = requests.get(
         "https://mangadex.org/api/v2/chapter/{}".format(manga_id))
     manga = json.loads(response.text)["data"]
@@ -322,35 +344,6 @@ def chap_id_to_manga(url, manga_id):
     print("Input chapter "+chap_i+".")
     return(manga["mangaId"], chap_i)
 
-
-def start():
-    global manga_id
-    print("mangadex-dl v{}".format(version))
-
-    if len(sys.argv) > 1:
-        lang_code = sys.argv[1]
-    else:
-        lang_code = "gb"
-
-    chap_i = ""
-    url = ""
-    while url == "":
-        url = input("Enter manga URL: ").strip()
-        if url == "exit" or url == "quit" or url == "q":
-            quit()
-        if not validators.url(url):
-            url = ""
-            print("Invalid url.")
-    try:
-        manga_id = re.search("[0-9]+", url).group(0)
-        if "mangadex.org/chapter" in url:
-            manga_id, chap_i = chap_id_to_manga(url, manga_id)
-    except:
-        print("Error with URL.")
-
-    dl(manga_id, lang_code, chap_i)
-
-
 if __name__ == "__main__":
 
-    start()
+    main()
