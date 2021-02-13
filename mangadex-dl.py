@@ -11,7 +11,7 @@ import validators
 
 version = "0.2.9"
 
-file_save_location = os.getcwd(), "download"
+file_save_location = os.path.expanduser("~//Desktop")
 # file_save_location = os.getcwd(), "download" #default save location
 maximum_number_of_concurrent_downloads = 30
 
@@ -34,12 +34,12 @@ def zpad(x):
     '''
     pads filenames with zeroes using zfill
     '''
-    x1 = str(x)
-    if "." in x1:
-        parts = x1.split('.')
+    o = str(x)
+    if "." in o:
+        parts = o.split('.')
         return "{}.{}".format(parts[0].zfill(3), parts[1])
     else:
-        return x1.zfill(3)
+        return o.zfill(3)
 
 
 def dl(manga_id, lang_code, chap_i):
@@ -47,10 +47,10 @@ def dl(manga_id, lang_code, chap_i):
     grab manga info json from api v2
     '''
     try:
-        r1 = requests.get("https://mangadex.org/api/v2/manga/{}/"\
-                          .format(manga_id))
+        response_1 = requests.get(
+            "https://mangadex.org/api/v2/manga/{}/".format(manga_id))
         try:
-            title = json.loads(r1.text)["data"]["title"]
+            title = json.loads(response_1.text)["data"]["title"]
         except:
             print("Please enter a MangaDex URL.")
             exit(1)
@@ -60,9 +60,9 @@ def dl(manga_id, lang_code, chap_i):
         exit("1 Error: {}".format(err))
 
     try:
-        r2 = requests.get("https://mangadex.org/api/v2/manga/{}/chapters"\
-                          .format(manga_id))
-        manga = json.loads(r2.text)["data"]["chapters"]
+        response_2 = requests.get(
+            "https://mangadex.org/api/v2/manga/{}/chapters".format(manga_id))
+        manga = json.loads(response_2.text)["data"]["chapters"]
     except (json.decoder.JSONDecodeError, ValueError) as err:
         print("2 Error: {}".format(err))
         exit("2 Error: {}".format(err))
@@ -71,10 +71,15 @@ def dl(manga_id, lang_code, chap_i):
     chapters = []
     for i in range(len(manga)):
         if manga[i]["language"] == lang_code:
-            chapters.append(manga[i]["chapter"])
+            chapters.append(str(manga[i]["chapter"]))
     chapters.sort(key=float_conversion)  # sort numerically by chapter #
 
     chapters_revised = ["Oneshot" if x == "" else x for x in chapters]
+
+    # get all groups
+    groups_all = []
+    for i in range(len(manga)):
+        groups_all.append(manga[i]["groups"][0])
 
     # Find all duplicates
     dupl_s = set()
@@ -82,6 +87,7 @@ def dl(manga_id, lang_code, chap_i):
         if chapters_revised.count(i) > 1:
             dupl_s.add(i)
     dupl = list(dupl_s)
+
     dupl.sort(key=float_conversion)
 
     # print downloadable chapters
@@ -101,8 +107,8 @@ def dl(manga_id, lang_code, chap_i):
     for chapter_id in range(len(manga)):
         chapter_num = None
         try:
-            chapter_num = str(float(manga[chapter_id]["chapter"]))\
-                .replace(".0", "")
+            chapter_num = str(
+                float(manga[chapter_id]["chapter"])).replace(".0", "")
         except:
             chapter_num = str(manga[chapter_id]["chapter"])
 
@@ -110,13 +116,22 @@ def dl(manga_id, lang_code, chap_i):
         if chapter_num in requested_chapters\
                 and manga[chapter_id]["language"] == lang_code:
 
-            chaps_to_dl.append((str(chapter_num),\
-                                manga[chapter_id]["id"], chapter_group))
-    chaps_to_dl.sort(key = lambda x: float(x[0]))
+            chaps_to_dl.append(
+                (str(chapter_num), manga[chapter_id]["id"], chapter_group[0]))
+    chaps_to_dl.sort(key=lambda x: float(x[0]))
 
+    chaps_to_dl_undupe_done = []
+    chaps_to_dl_undupe = []
     print()
     for chapter_id in chaps_to_dl:
-        download_chapters(chapter_id, title)
+        if chapter_id[0] in dupl:
+            if chapter_id[0][0] not in chaps_to_dl_undupe_done:
+                chaps_to_dl_undupe.append(chapter_id)
+                chaps_to_dl_undupe_done.append(chapter_id[0][0])
+        else:
+            chaps_to_dl_undupe.append(chapter_id)
+
+    [download_chapters(x, title) for x in chaps_to_dl_undupe]
 
     finish()
 
@@ -156,13 +171,13 @@ def get_chapters_to_download(chapters, chap_i):
                 try:
                     lower_bound_i = chapters.index(lower_bound)
                 except ValueError:
-                    print("Chapter {} does not exist. Skipping {}."\
+                    print("Chapter {} does not exist. Skipping {}."
                           .format(lower_bound, i))
                     continue  # go to next iteration of loop
                 try:
                     upper_bound_i = chapters.index(upper_bound)
                 except ValueError:
-                    print("Chapter {} does not exist. Skipping {}."\
+                    print("Chapter {} does not exist. Skipping {}."
                           .format(upper_bound, i))
                     continue
                 i = chapters[lower_bound_i:upper_bound_i+1]
@@ -187,8 +202,8 @@ def download_chapters(chapter_id, title):
     # get chapter(s) json
     print("Downloading chapter {}...".format(chapter_id[0]))
     while True:
-        r = requests.get("https://mangadex.org/api/v2/chapter/{}/"\
-                         .format(chapter_id[1]))
+        r = requests.get(
+            "https://mangadex.org/api/v2/chapter/{}/".format(chapter_id[1]))
         if r.status_code == 200:
             break
     chapter = json.loads(r.text)["data"]
@@ -214,8 +229,8 @@ def download_chapters(chapter_id, title):
             os.makedirs(dest_folder)
         while nr_of_dls > maximum_number_of_concurrent_downloads:
             time.sleep(0.1)
-        trdp = threading.Thread(target=page_download, \
-                                args=(pagenum, url, dest_folder, loc, chapter_id))
+        trdp = threading.Thread(target=page_download, args=(
+            pagenum, url, dest_folder, loc, chapter_id))
         trdp.start()
 
 
@@ -225,7 +240,7 @@ def page_download(pagenum, url, dest_folder, loc, chapter_id):
     nr_of_dls += 1
     server_file_filename = os.path.basename(url)
     ext = os.path.splitext(server_file_filename)[1]
-    dest_filename = loc +" "+ zpad(pagenum)+(ext)
+    dest_filename = loc + " " + zpad(pagenum)+(ext)
     outfile = os.path.join(dest_folder, dest_filename)
     all_downloaded_chapters.append(outfile)
     fail_count = 0
@@ -238,26 +253,26 @@ def page_download(pagenum, url, dest_folder, loc, chapter_id):
                     nr_of_dls -= 1
                     break
             else:
-                print("Encountered Error {} when downloading."\
-                      .format(r.status_code))
+                print("Encountered Error {} when downloading.".format(
+                    r.status_code))
                 fail_count += 1
                 time.sleep(3)
                 if fail_count > 6:
                     nr_of_dls -= 1
                     break
         except:
-            print("Download failed with ch {} page {}.".format(\
-                str(chapter_id[0]).zfill(4), \
+            print("Download failed with ch {} page {}.".format(
+                str(chapter_id[0]).zfill(4),
                 str(pagenum).zfill(2), ))
             fail_count += 1
             time.sleep(3)
             if fail_count > 6:
                 nr_of_dls -= 1
                 break
-    print(" Downloaded chapter {} page {}. Nr of active downloads {}."\
-          .format(str(chapter_id[0]).zfill(4), \
-                  str(pagenum).zfill(2), \
-                  str(nr_of_dls).zfill(2)))
+    print("Downloaded chapter {} page {}. Nr of active downloads {}.".format(
+        str(chapter_id[0]).zfill(4),
+        str(pagenum).zfill(2),
+        str(nr_of_dls).zfill(2)))
 
 
 def finish():
@@ -289,8 +304,10 @@ def find_failed_chapters():
         try:
             f = open(x)
             f.close()
-        except:
+        except IOError:
             failed_chapters.append(x)
+        except:
+            print("error with find_failed_chapters", x)
     if failed_chapters != []:
         print(failed_chapters)
     failed_chapters = []
@@ -298,15 +315,12 @@ def find_failed_chapters():
 
 
 def chap_id_to_manga(url, manga_id):
-    if "mangadex.org/chapter" in url:
-        response = requests.get("https://mangadex.org/api/v2/chapter/{}"\
-                                .format(manga_id))
-        manga = json.loads(response.text)["data"]
-        chap_i = manga["chapter"]
-        print("Input chapter "+chap_i+".")
-        return(manga["mangaId"], chap_i)
-    else:
-        return manga_id, None
+    response = requests.get(
+        "https://mangadex.org/api/v2/chapter/{}".format(manga_id))
+    manga = json.loads(response.text)["data"]
+    chap_i = manga["chapter"]
+    print("Input chapter "+chap_i+".")
+    return(manga["mangaId"], chap_i)
 
 
 def start():
@@ -329,7 +343,8 @@ def start():
             print("Invalid url.")
     try:
         manga_id = re.search("[0-9]+", url).group(0)
-        manga_id, chap_i = chap_id_to_manga(url, manga_id)
+        if "mangadex.org/chapter" in url:
+            manga_id, chap_i = chap_id_to_manga(url, manga_id)
     except:
         print("Error with URL.")
 
