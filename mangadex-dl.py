@@ -4,7 +4,6 @@ import os
 import sys
 import re
 import json
-import html
 import threading
 import requests
 import validators
@@ -34,10 +33,16 @@ def zpad(i):
     '''
     pads filenames with zeroes using zfill
     '''
+    global has_dot_chr
     j = str(i)
-    if "." in j:
-        parts = j.split('.')
-        return "{}.{}".format(parts[0].zfill(3), parts[1])
+    if has_dot_chr:
+        j = str(i)
+        if "." in j:
+            parts = j.split('.')
+            return "{}.{}".format(parts[0].zfill(3), parts[1])
+        else:
+            return "{}.0".format(j.zfill(3))
+
     else:
         return j.zfill(3)
 
@@ -46,6 +51,7 @@ def main():
     '''
     main funtion
     '''
+    global has_dot_chr
     print("mangadex-dl v{}".format(version))
 
     if len(sys.argv) > 1:
@@ -78,7 +84,7 @@ def main():
         except:
             print("Please enter a MangaDex URL.")
             exit(1)
-        print("\nTitle: {}".format(html.unescape(title)))
+        print("\nTitle: {}".format(title))
     except (json.decoder.JSONDecodeError, ValueError) as err:
         print("1 Error: {}".format(err))
         exit("1 Error: {}".format(err))
@@ -92,10 +98,13 @@ def main():
         exit("2 Error: {}".format(err))
 
     # get all chapters in chosen language
+    has_dot_chr = False
     chapters = []
     for i, _ in enumerate(manga):
         if manga[i]["language"] == lang_code:
             chapters.append(str(manga[i]["chapter"]))
+            if "." in manga[i]:
+                has_dot_chr = True
     chapters.sort(key=float_conversion)  # sort numerically by chapter #
 
     chapters_revised = ["Oneshot" if i == "" else i for i in chapters]
@@ -320,7 +329,7 @@ def page_download(pagenum, url, dest_folder, loc, chapter_id):
                     break
         except:
             print("Download failed with ch {} page {}.".format(
-                str(chapter_id[0]).zfill(4),
+                zpad(chapter_id[0]),
                 str(pagenum).zfill(2), ))
             fail_count += 1
             time.sleep(3)
@@ -328,7 +337,7 @@ def page_download(pagenum, url, dest_folder, loc, chapter_id):
                 nr_of_dls -= 1
                 break
     print("Downloaded chapter {} page {}. Nr of active downloads {}.".format(
-        str(chapter_id[0]).zfill(4),
+        zpad(chapter_id[0]),
         str(pagenum).zfill(2),
         str(nr_of_dls).zfill(2)))
 
