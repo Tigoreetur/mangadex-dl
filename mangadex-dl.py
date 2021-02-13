@@ -33,9 +33,9 @@ def zpad(i):
     '''
     pads filenames with zeroes using zfill
     '''
-    global has_dot_chr
+    global dot_chr
     j = str(i)
-    if has_dot_chr:
+    if dot_chr:
         j = str(i)
         if "." in j:
             parts = j.split('.')
@@ -51,7 +51,7 @@ def main():
     '''
     main funtion
     '''
-    global has_dot_chr
+    global dot_chr
     print("mangadex-dl v{}".format(version))
 
     if len(sys.argv) > 1:
@@ -98,13 +98,13 @@ def main():
         exit("2 Error: {}".format(err))
 
     # get all chapters in chosen language
-    has_dot_chr = False
+    dot_chr = False
     chapters = []
     for i, _ in enumerate(manga):
         if manga[i]["language"] == lang_code:
             chapters.append(str(manga[i]["chapter"]))
             if "." in manga[i]:
-                has_dot_chr = True
+                dot_chr = True
     chapters.sort(key=float_conversion)  # sort numerically by chapter #
 
     chapters_revised = ["Oneshot" if i == "" else i for i in chapters]
