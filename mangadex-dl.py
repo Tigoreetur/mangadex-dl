@@ -77,33 +77,19 @@ def main():
         print("Error with URL.")
 
     # grab manga info json from api v2
-    try:
-        response_1 = requests.get(
-            "https://mangadex.org/api/v2/manga/{}/".format(manga_id))
-        try:
-            title = json.loads(response_1.text)["data"]["title"]
-        except Exception:
-            print("Please enter a MangaDex URL.")
-            exit(1)
-        print("\nTitle: {}".format(title))
-    except (json.decoder.JSONDecodeError, ValueError) as err:
-        print("1 Error: {}".format(err))
-        exit("1 Error: {}".format(err))
+    response_1 = get_url(f"https://mangadex.org/api/v2/manga/{manga_id}/")
+    title = json.loads(response_1.text)["data"]["title"]
 
-    try:
-        response_2 = requests.get(
-            "https://mangadex.org/api/v2/manga/{}/chapters".format(manga_id))
-        manga = json.loads(response_2.text)["data"]["chapters"]
-    except (json.decoder.JSONDecodeError, ValueError) as err:
-        print("2 Error: {}".format(err))
-        exit("2 Error: {}".format(err))
+    response_2 = get_url(
+        f"https://mangadex.org/api/v2/manga/{manga_id}/chapters")
+    manga = json.loads(response_2.text)["data"]["chapters"]
 
     # get all chapters in chosen language
     chapters = []
     for i, _ in enumerate(manga):
         if manga[i]["language"] == lang_code:
             chapters.append(str(manga[i]["chapter"]))
-            if "." in manga[i]:
+            if "." in manga[i]["chapter"]:
                 dot_chr = True
     chapters.sort(key=float_conversion)  # sort numerically by chapter #
 
@@ -193,6 +179,7 @@ def main():
             print("error with find_failed_chapters fnc", i)
     if failed_chapters != []:
         print(failed_chapters)
+        input("Press enter to finish.")
     failed_chapters = []
     all_downloaded_chapters = []
 
@@ -264,11 +251,7 @@ def download_chapters(chapter_id, dest_folder):
 
     # get chapter(s) json
     print("Downloading chapter {}...".format(chapter_id[0]))
-    while True:
-        r = requests.get(
-            "https://mangadex.org/api/v2/chapter/{}/".format(chapter_id[1]))
-        if r.status_code == 200:
-            break
+    r = get_url(f"https://mangadex.org/api/v2/chapter/{chapter_id[1]}/")
     chapter = json.loads(r.text)["data"]
 
     # get url list
@@ -306,44 +289,55 @@ def page_download(pagenum, url, dest_folder, loc, chapter_id):
         os.path.splitext(os.path.basename(url))[1]
     outfile = os.path.join(dest_folder, dest_filename)
     all_downloaded_chapters.append(outfile)
+
+    r = get_url(url)
+    if r == "":
+        print("Failed to download ch {} page {}."
+              .format(
+                  zpad(chapter_id[0]),
+                  str(pagenum).zfill(2)))
+
+        nr_of_dls -= 1
+
+    else:
+        print("Downloaded chapter {} page {}. Nr of active downloads {}."
+              .format(
+                  zpad(chapter_id[0]),
+                  str(pagenum).zfill(2),
+                  str(nr_of_dls).zfill(2)))
+
+        with open(outfile, 'wb') as f:
+            f.write(r.content)
+            
+        nr_of_dls -= 1
+
+
+def get_url(url):
     fail_count = 0
     while True:
-        try:
-            r = requests.get(url, timeout=5)
-            if r.status_code == 200:
-                with open(outfile, 'wb') as f:
-                    f.write(r.content)
-                    nr_of_dls -= 1
-                    break
-            else:
-                print("Encountered Error {} when downloading.".format(
-                    r.status_code))
+        if fail_count < 5:
+            try:
+                r = requests.get(url, timeout=5)
+                if r.status_code == 200:
+                    return r
+                else:
+                    print(f"Encountered Error {r.status_code}.")
+                    fail_count += 1
+                    time.sleep(0.5)
+            except Exception:
+                print(f"Error with {url}")
                 fail_count += 1
-                time.sleep(3)
-                if fail_count > 6:
-                    nr_of_dls -= 1
-                    break
-        except Exception:
-            print("Download failed with ch {} page {}.".format(
-                zpad(chapter_id[0]),
-                str(pagenum).zfill(2), ))
-            fail_count += 1
-            time.sleep(3)
-            if fail_count > 6:
-                nr_of_dls -= 1
-                break
-    print("Downloaded chapter {} page {}. Nr of active downloads {}.".format(
-        zpad(chapter_id[0]),
-        str(pagenum).zfill(2),
-        str(nr_of_dls).zfill(2)))
+                time.sleep(0.5)
+        else:
+            print(f"Failed to get url: {url}")
+            return ""
 
 
 def chap_id_to_manga(manga_id):
     '''
     returns manga id of input chapter.
     '''
-    response = requests.get(
-        "https://mangadex.org/api/v2/chapter/{}".format(manga_id))
+    response = get_url(f"https://mangadex.org/api/v2/chapter/{manga_id}")
     manga = json.loads(response.text)["data"]
     chap_i = manga["chapter"]
     print("Input chapter "+chap_i+".")
