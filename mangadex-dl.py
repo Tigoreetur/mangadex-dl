@@ -40,9 +40,9 @@ def zpad(i):
         j = str(i)
         if "." in j:
             parts = j.split('.')
-            return "{}.{}".format(parts[0].zfill(3), parts[1])
+            return f"{parts[0].zfill(3)}.{parts[1]}"
         else:
-            return "{}.0".format(j.zfill(3))
+            return f"{j.zfill(3)}.0"
 
     else:
         return j.zfill(3)
@@ -214,21 +214,18 @@ def get_chapters_to_download(chapters, chap_i):
 
             if "-" in i:
                 split = i.split('-')
-                lower_bound = split[0]
-                upper_bound = split[1]
+
                 try:
-                    lower_bound_i = chapters.index(lower_bound)
+                    l_bound_c = chapters.index(split[0])
                 except ValueError:
-                    print("Chapter {} does not exist. Skipping {}."
-                          .format(lower_bound, i))
+                    print(f"Chapter {split[0]} does not exist. Skipping {i}.")
                     continue  # go to next iteration of loop
                 try:
-                    upper_bound_i = chapters.index(upper_bound)
+                    u_bound_c = chapters.index(split[1])
                 except ValueError:
-                    print("Chapter {} does not exist. Skipping {}."
-                          .format(upper_bound, i))
+                    print(f"Chapter {split[1]} does not exist. Skipping {i}.")
                     continue
-                i = chapters[lower_bound_i:upper_bound_i+1]
+                i = chapters[l_bound_c:u_bound_c+1]
             else:
                 try:
                     i = [chapters[chapters.index(i)]]
@@ -250,7 +247,7 @@ def download_chapters(chapter_id, dest_folder):
     global failed_chapters
 
     # get chapter(s) json
-    print("Downloading chapter {}...".format(chapter_id[0]))
+    print(f"Downloading chapter {chapter_id[0]}.")
     r = get_url(f"https://mangadex.org/api/v2/chapter/{chapter_id[1]}/")
     chapter = json.loads(r.text)["data"]
 
@@ -258,14 +255,14 @@ def download_chapters(chapter_id, dest_folder):
     images = []
     server = chapter["server"]
     if "mangadex." not in server:
-        server = "https://mangadex.org{}".format(server)
+        server = f"https://mangadex.org{server}"
     hashcode = chapter["hash"]
     for page in chapter["pages"]:
-        images.append("{}{}/{}".format(server, hashcode, page))
+        images.append(f"{server}{hashcode}/{page}")
 
     groupname = re.sub('[/<>:"/\\|?*]', '-', chapter["groups"][0]["name"])
 
-    loc = ("c{} [{}]".format(zpad(chapter_id[0]), groupname))
+    loc = (f"c{zpad(chapter_id[0])} [{groupname}]")
     # download images
     for pagenum, url in enumerate(images, 1):
 
@@ -308,16 +305,19 @@ def page_download(pagenum, url, dest_folder, loc, chapter_id):
 
         with open(outfile, 'wb') as f:
             f.write(r.content)
-            
+
         nr_of_dls -= 1
 
 
 def get_url(url):
+    '''
+    Gets response from url.
+    '''
     fail_count = 0
     while True:
         if fail_count < 5:
             try:
-                r = requests.get(url, timeout=5)
+                r = requests.get(url, timeout=15)
                 if r.status_code == 200:
                     return r
                 else:
@@ -329,7 +329,7 @@ def get_url(url):
                 fail_count += 1
                 time.sleep(0.5)
         else:
-            print(f"Failed to get url: {url}")
+            print(f"Failed to get url: {url}. Stopping further attempts.")
             return ""
 
 
