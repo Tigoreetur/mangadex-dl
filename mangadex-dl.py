@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-import time
-import os
+import os.path
 import json
 import threading
 import requests
@@ -9,12 +8,14 @@ import argparse
 
 version = "0.2.9"
 
-file_save_location = os.path.expanduser("~//Desktop")
-# file_save_location = os.getcwd(), "download" #default save location
-maximum_number_of_concurrent_downloads = 30
+file_save_location = os.path.expanduser(os.path.join("~", "Desktop"))
+# file_save_location = failed_chapters(os.getcwd(), "download")
+# default save location
+
+max_nr_of_conc_dwl = 30
 chapters_max_len = 0
-maximum_number_of_concurrent_downloads_len = len(str(abs(
-    maximum_number_of_concurrent_downloads)))
+max_nr_of_conc_dwl_len = len(str(abs(
+    max_nr_of_conc_dwl)))
 failed_chapters = []
 all_downloaded_chapters = []
 nr_of_dls = 0
@@ -83,8 +84,6 @@ def main():
                     metavar="chapters", default=None,
                     help="Select chapters to download.")
 
-# Execute parse_args()
-
     args = pr.parse_args()
 
     if args.lang:
@@ -145,6 +144,8 @@ def main():
 
     chapters_revised = ["Oneshot" if i == "" else i for i in chapters]
 
+    chapters_ml = ["0" if i == "" else i for i in chapters]
+    
     # get all groups
     groups_all = []
     for i, _ in enumerate(manga):
@@ -168,7 +169,8 @@ def main():
             print("Duplictes found")
             print(" " + ', '.join(map(str, dupl)))
 
-    chapters_max_len = len(str(int(float(max(chapters)))))
+    chapters_max_len = len(str(int(max(chapters_ml, key=lambda x: float(x)))))
+
     requested_chapters = get_chapters_to_dwl(chapters, chap_i, req_chap_input)
 
     # find out which are availble to dl
@@ -186,7 +188,6 @@ def main():
                 and manga[chapter_id]["language"] == lang_code:
             chaps_to_dl.append(
                 (str(chapter_num), manga[chapter_id]["id"], chapter_group[0]))
-    chaps_to_dl.sort(key=lambda i: float(i[0]))
 
     chaps_to_dl_undupe_done = []
     chaps_to_dl_undupe = []
@@ -203,6 +204,9 @@ def main():
 
     dest_folder = os.path.join(file_save_location, title)
 
+    if not os.path.exists(dest_folder):
+        os.makedirs(dest_folder)
+
     for i in chaps_to_dl_undupe:
         download_chapters(i, dest_folder)
 
@@ -213,9 +217,9 @@ def main():
 
     path = os.path.join(dest_folder, "!Manga.url")
     shortcut = open(path, 'w')
-    shortcut.write('[InternetShortcut]\n')
-    url = "https://mangadex.org/manga/" + str(manga_id)
-    shortcut.write('URL=%s' % url)
+    shortcut.write('[InternetShortcut]\n\
+                   URL=%s' % ("https://mangadex.org/manga/"
+                              + str(manga_id)))
     shortcut.close()
 
     global failed_chapters
@@ -223,9 +227,8 @@ def main():
     for i in all_downloaded_chapters:
         if not os.path.isfile(i):
             failed_chapters.append(i)
-    if failed_chapters != []:
-        print("Could not open thease files.")
-        print(failed_chapters)
+    if not failed_chapters == []:
+        print("Could not open thease files.\n{}".format(failed_chapters))
         input("Press enter to finish.")
     failed_chapters = []
     all_downloaded_chapters = []
@@ -289,7 +292,7 @@ def get_chapters_to_dwl(chapters, chap_i, req_chap_input):
     return requested_chapters
 
 
-def download_chapters(chapter_id, dest_folder):
+def download_chapters(chap_id, dest_folder):
     '''
     download chapters
     '''
@@ -298,9 +301,9 @@ def download_chapters(chapter_id, dest_folder):
     global failed_chapters
 
     # get chapter(s) json
-    print("Downloading chapter {}.".format(chapter_id[0]))
+    print("Downloading chapter {}.".format(chap_id[0]))
     r, r_s = get_url("https://mangadex.org/api/v2/chapter/{}/".format(
-        chapter_id[1]))
+        chap_id[1]))
     if r_s:
         print("Failed to get url. Exiting")
         exit("Failed to ger url in download_chapters fnc.")
@@ -317,25 +320,23 @@ def download_chapters(chapter_id, dest_folder):
 
     groupname = valid_file_chr(chapter["groups"][0]["name"])
 
-    loc = ("c{} [{}]".format(zpad(chapter_id[0]), groupname))
+    loc = ("c{} [{}]".format(zpad(chap_id[0]), groupname))
+
     # download images
     for pagenum, url in enumerate(images, 1):
-
-        if not os.path.exists(dest_folder):
-            os.makedirs(dest_folder)
-        while nr_of_dls > maximum_number_of_concurrent_downloads:
+        while nr_of_dls > max_nr_of_conc_dwl:
             pass
-        trdp = threading.Thread(target=page_download, args=(
-            pagenum, url, dest_folder, loc, chapter_id))
+        trdp = threading.Thread(target=page_dwl, args=(
+            pagenum, url, dest_folder, loc, chap_id))
         trdp.start()
 
 
-def page_download(pagenum, url, dest_folder, loc, chapter_id):
+def page_dwl(pagenum, url, dest_folder, loc, chapter_id):
     '''
     download all pages
     '''
     global all_downloaded_chapters
-    global maximum_number_of_concurrent_downloads_len
+    global max_nr_of_conc_dwl_len
     global nr_of_dls
     nr_of_dls += 1
     dest_filename = loc + " " + str(pagenum).zfill(2) + \
@@ -358,7 +359,7 @@ def page_download(pagenum, url, dest_folder, loc, chapter_id):
                   zpad(chapter_id[0]),
                   str(pagenum).zfill(2),
                   str(nr_of_dls).zfill(
-                      maximum_number_of_concurrent_downloads_len)))
+                      max_nr_of_conc_dwl_len)))
 
         with open(outfile, 'wb') as f:
             f.write(r.content)
@@ -372,7 +373,7 @@ def get_url(url):
     '''
     fail_count = 0
     while True:
-        if fail_count < 5:
+        if fail_count < 15:
             try:
                 r = requests.get(url, timeout=15)
                 if r.status_code == 200:
@@ -380,11 +381,9 @@ def get_url(url):
                 else:
                     print("Encountered Error {}.".format(r.status_code))
                     fail_count += 1
-                    time.sleep(0.5)
             except Exception:
                 print("Error with {}".format(url))
                 fail_count += 1
-                time.sleep(0.5)
         else:
             print("Failed to get url: {}. Stopping further attempts.".format(
                 url))
