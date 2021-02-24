@@ -1,3 +1,4 @@
 download/
 *.pyc
 .vscode
+workspace.code-workspace
